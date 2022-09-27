@@ -1,3 +1,5 @@
+from . import HanderFactory
+
 def find_version():
     """Find the version"""
     # setuptools_scm should install a
@@ -9,3 +11,10 @@ try:
     __version__ = find_version()
 except ImportError: # pragma: no cover
     __version__ = "unknown"
+
+
+read_get = HandlerFactory.read_get
+
+get = HandlerFactory.get
+
+write = HandlerFactory.write
