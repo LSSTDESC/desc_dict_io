@@ -224,7 +224,7 @@ def test_comments():
     ]
 
     with tempfile.TemporaryDirectory() as dirname:
-        for suffix in ["hdf", "fits"]:
+        for suffix in ["hdf", "fits", "yml", "pkl"]:
             fname = os.path.join(dirname, f"test.{suffix}")
             ioUtils.write(p, fname, "provenance", comments=comments)
             q, r_comments = ioUtils.read_get(fname, "provenance")

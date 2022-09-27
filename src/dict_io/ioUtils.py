@@ -3,6 +3,8 @@ import pathlib
 import collections
 import warnings
 
+from io import TextIOWrapper
+
 from ruamel import yaml
 
 from . import utils
@@ -322,6 +324,19 @@ class FitsHandler(DictHandler):
 class YamlHandler(DictHandler):
 
     @classmethod
+    def _make_yml(cls, the_dict, comments, comments_section='comments'):
+        # internal method to make a dictionary from
+        # this instance suitable to dump to yml
+        d = {}
+        for (sec, key), val in the_dict.items():
+            if sec not in d:
+                d[sec] = {}
+            d[sec][key] = val
+        if comments is not None:
+            d[comments_section] = comments[:]
+        return d
+
+    @classmethod
     def read_get(cls, filename, group, item=None, comments_section='comments'):
         y = yaml.YAML()
 
@@ -336,7 +351,7 @@ class YamlHandler(DictHandler):
                 )
             if item is not None:
                 try:
-                    return d[item]
+                    return d[item[0]][item[1]]
                 except KeyError:
                     raise errors.DictIOMissingItem(
                         f"Yaml file is {group} missing {item}"
@@ -347,27 +362,32 @@ class YamlHandler(DictHandler):
             # for comments
             out = {}
             com = []
-            for (section, key), value in d.items():
+            for section, sub in d.items():
                 if section == comments_section:
-                    com.append(value)
+                    com = sub[:]
                 else:
-                    out[section, key] = value
+                    try:
+                        for key, value in sub.items():
+                            out[section, key] = value
+                    except:
+                        import pdb
+                        pdb.set_trace()
             return out, com
-
 
     @classmethod
     def get(cls, filename, group, section, key):
         return cls.read_get(filename, group, (section, key))
 
-
     @classmethod
-    def write(cls, the_dict, filename, group, **kwargs):
+    def write(cls, the_dict, filename, group, comments=None, comments_section='comments'):
         # Create the YAML loader.  The default instance
         # of this preserves comments in the YAML if present,
         # which means we can run this code on existing
         # commented yaml without destroying it
         y = yaml.YAML()
 
+        write_dict = cls._make_yml(the_dict, comments, comments_section)
+        
         if utils.is_path(filename) or "r" in filename.mode:
             with utils.open_file(filename, "r+") as f:
 
@@ -391,16 +411,16 @@ class YamlHandler(DictHandler):
                         "DictIO only supports yaml files containing a dictionary as the top level object"
                     )
 
-                # replace existing prov completely if present.  We re-write
+                # replace existing completely if present.  We re-write
                 # the whole file contents after the prov.  Could avoid but not really needed
                 # as ruamel should maintain comments.
-                d[group] = the_dict
+                d[group] = write_dict
                 f.seek(0)
                 y.dump(d, f)
                 f.truncate()
         else:
             # file opened in write-only mpde
-            y.dump(the_dict, f)
+            y.dump(write_dict, f)
 
 
 class PickleHandler(DictHandler):
@@ -503,8 +523,10 @@ class HandlerFactory:
         -------
         the_dict, comments : dict[tuple[str, str], Any], list[str]
         """
-
-        p = pathlib.Path(filename)
+        if isinstance(filename, TextIOWrapper):
+            p = pathlib.Path(filename.name)
+        else:
+            p = pathlib.Path(filename)
 
         handler = cls.get_handler(p.suffix)
 
