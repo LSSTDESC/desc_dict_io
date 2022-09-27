@@ -1,4 +1,4 @@
-from . import HanderFactory
+from .ioUtils import HandlerFactory
 
 def find_version():
     """Find the version"""
