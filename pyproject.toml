@@ -32,7 +32,14 @@ dev = [
     "pytest",
     "pytest-cov",
     "flake8",
+    "ruamel.yaml",
+    "fitsio",
+    "h5py",
 ]
+yaml = ["ruamel.yaml"]
+fits = ["fitsio"]
+hdf = ["h5py"]
+all = ["ruamel.yaml", "fitsio", "h5py"]
 
 [build-system]
 requires = ["setuptools>=61", "wheel", "setuptools_scm[toml]>=6.2"]
