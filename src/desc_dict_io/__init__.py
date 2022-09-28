@@ -4,7 +4,7 @@ def find_version():
     """Find the version"""
     # setuptools_scm should install a
     # file _version alongside this one.
-    from . import _version
+    from . import _version  # pylint: disable=import-outside-toplevel
     return _version.version
 
 try:
@@ -13,7 +13,7 @@ except ImportError: # pragma: no cover
     __version__ = "unknown"
 
 
-read_get = HandlerFactory.read_get
+read = HandlerFactory.read
 
 get = HandlerFactory.get
 

@@ -1,14 +1,9 @@
 import tempfile
-from dict_io import ioUtils, utils, errors
-
-from pprint import pprint
-import pytest
-import datetime
 import os
 import random
 import string
-import h5py
-
+import pytest
+from desc_dict_io import ioUtils, utils, errors
 
 @pytest.mark.parametrize(
     "file_type, opener", [
@@ -28,11 +23,11 @@ def test_new(file_type, opener):
 
     with tempfile.TemporaryDirectory() as dirname:
         fname = os.path.join(dirname, f"test.{file_type}")
-        file_id = ioUtils.write(p, fname, "provenance")
+        ioUtils.write(p, fname, "provenance")
 
         assert os.path.exists(fname)
 
-        q, _com = ioUtils.read_get(fname, "provenance")
+        q, _com = ioUtils.read(fname, "provenance")
 
         print(q)
         assert q["sec", "aaa"] == "xxx"
@@ -62,7 +57,7 @@ def test_new(file_type, opener):
             ioUtils.get(fname, "provenance", "sec", "xxx")
 
 
-                
+
 def test_new_fits():
     file_type = "fits"
     p = {}
@@ -76,11 +71,11 @@ def test_new_fits():
         fname = os.path.join(dirname, f"test.{file_type}")
 
         # Write to now-closed
-        file_id = ioUtils.write(p, fname, "provenance")
+        ioUtils.write(p, fname, "provenance")
 
         assert os.path.exists(fname)
 
-        q, r_comments = ioUtils.read_get(fname, "provenance")
+        q, _comments = ioUtils.read(fname, "provenance")
 
         assert q["sec", "aaa"] == "xxx"
         assert q["sec", "bbb"] == 123
@@ -105,7 +100,7 @@ def test_fits_multiline():
 
         assert os.path.exists(fname)
 
-        q, _com = ioUtils.read_get(fname, "provenance")
+        q, _com = ioUtils.read(fname, "provenance")
 
         assert p["sec", "aaa"] == q["sec", "aaa"]
 
@@ -128,15 +123,20 @@ def test_existing_hdf():
         with utils.open_hdf(fname, "w") as f:
             f.create_group("cake")
 
-        ioUtils.write(p, fname, "provenance", comments)
-        ioUtils.write(p, fname2, "provenance", comments)
+        ioUtils.write(p, fname, "provenance", comments=comments)
+        ioUtils.write(p, fname2, "provenance", comments=comments)
 
-        q1 = ioUtils.read_get(fname, "provenance")
-        q2 = ioUtils.read_get(fname2, "provenance")
+        q1, com1 = ioUtils.read(fname, "provenance")
+        q2, com2 = ioUtils.read(fname2, "provenance")
+
+        assert q1 == p
+        assert q2 == p
+        assert comments[0] in com1
+        assert comments[0] in com2
 
 
 def test_yml():
-    import ruamel.yaml as yaml
+    from ruamel import yaml  # pylint: disable=import-outside-toplevel
 
     y = yaml.YAML()
     # check nothing is overridden
@@ -154,17 +154,21 @@ def test_yml():
     p["sec", "eee"] = 4.14
 
     comments = ["this is a test to check nothing else breaks"]
-    
+
     with tempfile.TemporaryDirectory() as dirname:
         fname = os.path.join(dirname, "test.yml")
-        y.dump(d, open(fname, "w"))
+        with open(fname, "w", encoding="utf-8") as fin:
+            y.dump(d, fin)
 
         ioUtils. write(p, fname, "provenance", comments)
 
         # check prov reads
-        q = ioUtils.read_get(fname, "provenance")
+        q, com = ioUtils.read(fname, "provenance")
+        assert q == p
+        assert comments[0] in com
 
-        d2 = y.load(open(fname))
+        with open(fname, encoding="utf-8") as fin:
+            d2 = y.load(fin)
         d2.pop("provenance")
         assert d == d2
 
@@ -177,13 +181,17 @@ def test_unknown_file_type():
     p["sec", "ccc"] = 3.14
     p["sec", "DDD"] = "cat"
     p["sec", "eee"] = 4.14
-    
+
+    comments = ["this is a test to check nothing else breaks"]
+
     with tempfile.TemporaryDirectory() as dirname:
         fname = os.path.join(dirname, "test.xyz")
         pname = os.path.join(dirname, "test.xyz.provenance.yaml")
-        file_id = ioUtils.write(p, fname, "provenance")
+        ioUtils.write(p, fname, "provenance", comments=comments)
         print(fname, pname)
-        p2 = ioUtils.read_get(fname, "provenance")
+        p2, com = ioUtils.read(fname, "provenance")
+        assert p2 == p
+        assert comments[0] in com
 
 
 def test_long():
@@ -193,7 +201,9 @@ def test_long():
     p["sec", "ccc"] = 3.14
     p["sec", "DDD"] = "cat"
     p["sec", "eee"] = 4.14
-    
+
+    comments = ["this is a test to check nothing else breaks"]
+
     lines = []
     for i in range(1002):
         line = "".join(random.choice(string.printable) for i in range(100))
@@ -204,8 +214,10 @@ def test_long():
     with tempfile.TemporaryDirectory() as dirname:
         fname = os.path.join(dirname, "test.fits")
         with pytest.warns(UserWarning):
-            ioUtils.write(p, fname, "provenance")
-        q = ioUtils.read_get(fname, "provenance")
+            ioUtils.write(p, fname, "provenance", comments=comments)
+        q, com = ioUtils.read(fname, "provenance")
+        assert comments[0] in com
+        assert q["sec", "aaa"] == p["sec", "aaa"]
 
 
 def test_comments():
@@ -215,7 +227,7 @@ def test_comments():
     p["sec", "ccc"] = 3.14
     p["sec", "DDD"] = "cat"
     p["sec", "eee"] = 4.14
-    
+
     comments = [
         "Hello,",
         "My name is Inigo Montoya",
@@ -227,7 +239,8 @@ def test_comments():
         for suffix in ["hdf", "fits", "yml", "pkl"]:
             fname = os.path.join(dirname, f"test.{suffix}")
             ioUtils.write(p, fname, "provenance", comments=comments)
-            q, r_comments = ioUtils.read_get(fname, "provenance")
+            q, r_comments = ioUtils.read(fname, "provenance")
+            assert q == p
             for c in comments:
                 assert c in r_comments
 

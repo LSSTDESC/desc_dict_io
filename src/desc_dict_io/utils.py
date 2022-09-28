@@ -1,5 +1,4 @@
 import os
-import inspect
 import pathlib
 import contextlib
 import shutil
@@ -28,7 +27,7 @@ def is_path(p):
 @contextlib.contextmanager
 def open_hdf(hdf_file, mode):
     """Open an HDF file, or if a file is provided, simply return it"""
-    import h5py
+    import h5py  # pylint: disable=import-outside-toplevel
 
     if is_path(hdf_file):
         f = h5py.File(hdf_file, mode)
@@ -43,7 +42,7 @@ def open_hdf(hdf_file, mode):
 @contextlib.contextmanager
 def open_fits(fits_file, mode):
     """Open a FITS file, or if a file is already provided simply return it"""
-    import fitsio
+    import fitsio  # pylint: disable=import-outside-toplevel
 
     if is_path(fits_file):
         exists = os.path.exists(fits_file)
@@ -70,9 +69,9 @@ def open_file(file, mode):
 
     if is_path(file):
         if mode in ["r+"] and not os.path.exists(file):
-            f = open(file, "w+")
-        else:            
-            f = open(file, mode=mode)
+            f = open(file, "w+", encoding="utf-8")
+        else:
+            f = open(file, mode=mode, encoding="utf-8")
 
         try:
             yield f
@@ -89,8 +88,8 @@ def open_pickle(file, mode):
     if is_path(file):
         if mode in ["r+b"] and not os.path.exists(file):
             f = open(file, "w+b")
-        else:            
-            f = open(file, mode=mode)
+        else:
+            f = open(file, mode=mode, encoding="utf-8")
 
         try:
             yield f

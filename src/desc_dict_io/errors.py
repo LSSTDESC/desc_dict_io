@@ -1,6 +1,8 @@
-
-
 class DictIOError(Exception):
+    pass
+
+
+class DictIOKeyError(KeyError):
     pass
 
 
@@ -16,9 +18,9 @@ class DictIOMissingFile(DictIOError):
     pass
 
 
-class DictIOMissingSection(DictIOError):
+class DictIOMissingSection(DictIOKeyError):
     pass
 
 
-class DictIOMissingItem(DictIOError):
+class DictIOMissingItem(DictIOKeyError):
     pass

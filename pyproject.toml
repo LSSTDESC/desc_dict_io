@@ -1,11 +1,11 @@
 [project]
-name = "dict-io"
+name = "desc-dict-io"
 description = "Dictionary IO to various file types"
 readme = "README.md"
 requires-python = ">=3.8"
 license = { file = "LICENSE" }
 authors = [
-    { name = "Eric Charles", email = "echarles@slac.stanford.edu" },
+    { name = "Joe Zuntz", email = "echarles@slac.stanford.edu" },
     { name = "Eric Charles", email = "echarles@slac.stanford.edu" }
 
 ]
@@ -51,7 +51,7 @@ write_to = "src/dict_io/_version.py"
 [tool.setuptools.package-data]
 
 [tool.coverage.run]
-source = ["dict_io"]
+source = ["desc_dict_io"]
 branch = true
 
 [tool.coverage.report]
@@ -99,6 +99,7 @@ disable = [
     "missing-class-docstring",
     "missing-function-docstring",
     "too-few-public-methods",
+    "too-many-arguments",
     "duplicate-code"
 ]
 max-line-length = 110
@@ -112,7 +113,7 @@ line_length = 110
 
 [tool.pytest.ini_options]
 addopts = [
-    "--cov=dict_io",
+    "--cov=desc_dict_io",
     "--cov-branch",
     "--cov-report=html"
 ]

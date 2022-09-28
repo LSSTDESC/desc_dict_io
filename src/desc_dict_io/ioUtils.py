@@ -15,17 +15,17 @@ from .types import FileType, get_file_type
 class DictHandler:
 
     @classmethod
-    def read_get(cls, filename, group, item=None, comments_section="comments"):
+    def _read_get(cls, filename, group, item=None, comments_section="comments"):
         """Read one or more items from a file
 
         Parameters
         ----------
         filename: str
             The file we are reading from
-        
+
         group: str
             The name of the group we are reading from
-        
+
         item: tuple(str, str) or None
             The particular item we are reading
 
@@ -39,9 +39,9 @@ class DictHandler:
         raise NotImplementedError()
 
     @classmethod
-    def get(cls, filename, group, section, key):
-        """Read one or more items from a file
-        
+    def read(cls, filename, group, comments_section="comments"):
+        """Read a file into a dictionary and associated list of comments
+
         Parameters
         ----------
         filename: str
@@ -49,7 +49,28 @@ class DictHandler:
 
         group: str
             The name of the group we are reading from
-        
+
+        comments_section: str
+            Where the comments are stored
+
+        Returns
+        -------
+        the_dict, comments : dict[tuple[str, str], Any], list[str]
+        """
+        return cls._read_get(filename, group, item=None, comments_section=comments_section)
+
+    @classmethod
+    def get(cls, filename, group, section, key):
+        """Read one or more items from a file
+
+        Parameters
+        ----------
+        filename: str
+            The file we are reading from
+
+        group: str
+            The name of the group we are reading from
+
         section : str
             Section header for the item we want
 
@@ -61,10 +82,10 @@ class DictHandler:
         value: Any
             The value of the requested item
         """
-        raise NotImplementedError()
+        return cls._read_get(filename, group, (section, key))
 
     @classmethod
-    def write(cls, the_dict, f, group,  comments=None, comments_section='comments'):
+    def write(cls, the_dict, filename, group, comments=None, comments_section='comments'):
         """
         Write to a file
 
@@ -73,7 +94,7 @@ class DictHandler:
         the_dict: dict
             dictionary to write
 
-        f: str or writeable object
+        filename: str or writeable object
             File to write to
 
         group: str
@@ -92,7 +113,7 @@ class DictHandler:
 class HdfHandler(DictHandler):
 
     @classmethod
-    def read_get(cls, filename, group, item=None, comments_section="comments"):
+    def _read_get(cls, filename, group, item=None, comments_section="comments"):
 
         with utils.open_hdf(filename, "r") as f:
             # If the whole group section is missing, e.g.
@@ -135,10 +156,6 @@ class HdfHandler(DictHandler):
             return value
 
     @classmethod
-    def get(cls, filename, group, section, key):
-        return cls.read_get(filename, group, (section, key))
-
-    @classmethod
     def write(cls, the_dict, filename, group, comments=None, comments_section='comments'):
 
         with utils.open_hdf(filename, "a") as f:
@@ -171,17 +188,17 @@ class HdfHandler(DictHandler):
 
 
 class FitsHandler(DictHandler):
-                    
+
     @classmethod
-    def read_get(cls, filename, group, item=None, **kwargs):
+    def _read_get(cls, filename, group, item=None, comments_section="comments"):
 
         with utils.open_fits(filename, "r") as f:
             try:
                 ext = f[group]
-            except OSError:
+            except OSError as err:
                 raise errors.DictIOMissingSection(
                     f"Fits file is missing HDU {group}"
-                )
+                ) from err
             # We may be called from the get or read methods.
             # In the former case we will be given a specific item
             # to get, which we split here
@@ -269,12 +286,7 @@ class FitsHandler(DictHandler):
 
 
     @classmethod
-    def get(cls, filename, group, section, key):
-        return cls.read_get(filename, group, (section, key))
-
-
-    @classmethod
-    def write(cls, the_dict, filename, group, comments=None, **kwargs):
+    def write(cls, the_dict, filename, group, comments=None, comments_section="comments"):
 
         with utils.open_fits(filename, "rw") as f:
 
@@ -307,7 +319,7 @@ class FitsHandler(DictHandler):
                     # our keys are always shorter than this in this case
                     if len(values) > 999:
                         warnings.warn(
-                            f"Cannot write all very long item {section}/{key} to FITS (>999 lines).  Truncating."
+                            f"Cannot write very long item {section}/{key} to FITS (>999 lines).  Truncating."
                         )
                         values = values[:999]
                     for j, v in enumerate(values):
@@ -337,7 +349,7 @@ class YamlHandler(DictHandler):
         return d
 
     @classmethod
-    def read_get(cls, filename, group, item=None, comments_section='comments'):
+    def _read_get(cls, filename, group, item=None, comments_section='comments'):
         y = yaml.YAML()
 
         with utils.open_file(filename, "r") as f:
@@ -345,17 +357,17 @@ class YamlHandler(DictHandler):
             data = y.load(f)
             try:
                 d = data[group]
-            except KeyError:
+            except KeyError as err:
                 raise errors.DictIOMissingSection(
                     f"Yaml file is missing {group} section"
-                )
+                ) from err
             if item is not None:
                 try:
                     return d[item[0]][item[1]]
-                except KeyError:
+                except KeyError as err:
                     raise errors.DictIOMissingItem(
                         f"Yaml file is {group} missing {item}"
-                    )
+                    ) from err
 
             # Pull out the different sections
             # into a dict for provenance and a list
@@ -371,10 +383,6 @@ class YamlHandler(DictHandler):
             return out, com
 
     @classmethod
-    def get(cls, filename, group, section, key):
-        return cls.read_get(filename, group, (section, key))
-
-    @classmethod
     def write(cls, the_dict, filename, group, comments=None, comments_section='comments'):
         # Create the YAML loader.  The default instance
         # of this preserves comments in the YAML if present,
@@ -383,7 +391,7 @@ class YamlHandler(DictHandler):
         y = yaml.YAML()
 
         write_dict = cls._make_yml(the_dict, comments, comments_section)
-        
+
         if utils.is_path(filename) or "r" in filename.mode:
             with utils.open_file(filename, "r+") as f:
 
@@ -422,7 +430,7 @@ class YamlHandler(DictHandler):
 class PickleHandler(DictHandler):
 
     @classmethod
-    def read_get(cls, filename, group, **kwargs):
+    def _read_get(cls, filename, group, item=None, comments_section="comments"):
 
         #f = utils.open_file(filename, "r")
         #s = f.tell()
@@ -435,7 +443,7 @@ class PickleHandler(DictHandler):
                 try:
                     item = pickle.load(f)
                     n += 1
-                except:
+                except Exception:
                     break
             if n == 0:
                 raise errors.DictIOError(f"Nothing readable found in file {filename}")
@@ -455,14 +463,14 @@ class PickleHandler(DictHandler):
 
     @classmethod
     def get(cls, filename, group, section, key):
-        d, _com = cls.read_get(filename, group)
+        d, _com = cls._read_get(filename, group)
         try:
             return d[section, key]
-        except KeyError:
-            raise errors.DictIOMissingItem(f"{section},{key}")
+        except KeyError as err:
+            raise errors.DictIOMissingItem(f"{section},{key}") from err
 
     @classmethod
-    def write(cls, the_dict, filename, group, comments=None, **kwargs):
+    def write(cls, the_dict, filename, group, comments=None, comments_section='comments'):
         if comments is None:
             comments = []
 
@@ -498,7 +506,7 @@ class HandlerFactory:
         return cls.handlers[file_type]
 
     @classmethod
-    def read_get(cls, filename, group, item=None, comments_section="comments"):
+    def read(cls, filename, group, comments_section="comments"):
         """Read one or more items from a file
 
         Parameters
@@ -508,9 +516,6 @@ class HandlerFactory:
 
         group: str
             The name of the group we are reading from
-
-        item: tuple(str, str) or None
-            The particular item we are reading
 
         comments_section:
              Where the comments are stored
@@ -530,7 +535,7 @@ class HandlerFactory:
             handler = YamlHandler
             filename = p.parent / (p.name + ".provenance.yaml")
 
-        return handler.read_get(filename, group, item=item, comments_section=comments_section)
+        return handler.read(filename, group, comments_section=comments_section)
 
     @classmethod
     def get(cls, filename, group, section, key):
@@ -566,7 +571,7 @@ class HandlerFactory:
         return handler.get(filename, group, section, key)
 
     @classmethod
-    def write(cls, the_dict, f, group, suffix=None, comments=None, comments_section='comments'):
+    def write(cls, the_dict, f, group, comments=None, comments_section='comments', suffix=None):
         """
         Write dict to a named file, guessing the file type from its suffix.
 
@@ -581,14 +586,14 @@ class HandlerFactory:
         group: str
             Where in the file to write the dict
 
-        suffix: str
-            Must be supplied if f is a file-like object
-
         comments: list[str] | None
             Comments to write along with dict
 
         comments_section: str
             Where to write the comments
+
+        suffix: str
+            Must be supplied if f is a file-like object
         """
         # String or path
         if utils.is_path(f):
@@ -600,7 +605,7 @@ class HandlerFactory:
         # If passed a directory, make a provenance file in that directory
         if suffix == "" and isinstance(f, pathlib.Path) and f.is_dir():
             p = f.parent / (f.name + f".{group}.yaml")
-            return YamlHandler.write(the_dict, p, group)
+            return YamlHandler.write(the_dict, p, group, comments=comments, comments_section=comments_section)
 
         if suffix and not suffix.startswith("."):
             suffix = "." + suffix
@@ -611,12 +616,12 @@ class HandlerFactory:
         # then just put a file next to it.
         if handler is None:
             p = f.parent / (f.name + f".{group}.yaml")
-            return YamlHandler.write(the_dict, p, group)
+            return YamlHandler.write(the_dict, p, group, comments=comments, comments_section=comments_section)
 
         return handler.write(the_dict, f, group, comments=comments, comments_section=comments_section)
 
 
-read_get = HandlerFactory.read_get
+read = HandlerFactory.read
 
 get = HandlerFactory.get
 
