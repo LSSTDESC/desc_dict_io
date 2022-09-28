@@ -366,12 +366,8 @@ class YamlHandler(DictHandler):
                 if section == comments_section:
                     com = sub[:]
                 else:
-                    try:
-                        for key, value in sub.items():
-                            out[section, key] = value
-                    except:
-                        import pdb
-                        pdb.set_trace()
+                    for key, value in sub.items():
+                        out[section, key] = value
             return out, com
 
     @classmethod
